@@ -782,15 +782,15 @@ namespace exprtk
             };
 
             #define exprtk_register_real_type_tag(T)             \
-            template<> struct number_type<T>                     \
+            template <> struct number_type<T>                    \
             { typedef real_type_tag type; number_type() {} };    \
 
             #define exprtk_register_complex_type_tag(T)          \
-            template<> struct number_type<std::complex<T> >      \
+            template <> struct number_type<std::complex<T> >     \
             { typedef complex_type_tag type; number_type() {} }; \
 
             #define exprtk_register_int_type_tag(T)              \
-            template<> struct number_type<T>                     \
+            template <> struct number_type<T>                    \
             { typedef int_type_tag type; number_type() {} };     \
 
             exprtk_register_real_type_tag(double     )
@@ -836,7 +836,7 @@ namespace exprtk
             {
                static inline long double value()
                {
-                  const long double epsilon = (long double)(0.000000000001);
+                  const long double epsilon = static_cast<long double>(0.000000000001);
                   return epsilon;
                }
             };
@@ -1037,7 +1037,7 @@ namespace exprtk
             template <typename T>
             inline T roundn_impl(const T v0, const T v1, real_type_tag)
             {
-               const int index = std::max<int>(0, std::min<int>(pow10_size - 1, (int)std::floor(v1)));
+               const int index = std::max<int>(0, std::min<int>(pow10_size - 1, static_cast<int>(std::floor(v1))));
                const T p10 = T(pow10[index]);
 
                if (v0 < T(0))
@@ -1381,10 +1381,10 @@ namespace exprtk
          template <typename Type>
          struct numeric_info { enum { length = 0, size = 32, bound_length = 0, min_exp = 0, max_exp = 0 }; };
 
-         template<> struct numeric_info<int>         { enum { length = 10, size = 16, bound_length = 9}; };
-         template<> struct numeric_info<float>       { enum { min_exp =  -38, max_exp =  +38}; };
-         template<> struct numeric_info<double>      { enum { min_exp = -308, max_exp = +308}; };
-         template<> struct numeric_info<long double> { enum { min_exp = -308, max_exp = +308}; };
+         template <> struct numeric_info<int>         { enum { length = 10, size = 16, bound_length = 9}; };
+         template <> struct numeric_info<float>       { enum { min_exp =  -38, max_exp =  +38}; };
+         template <> struct numeric_info<double>      { enum { min_exp = -308, max_exp = +308}; };
+         template <> struct numeric_info<long double> { enum { min_exp = -308, max_exp = +308}; };
 
          template <typename T>
          inline int to_int32(const T v)
@@ -2415,9 +2415,9 @@ namespace exprtk
             return (s_end_ == itr);
          }
 
+         #ifndef exprtk_disable_comments
          inline bool is_comment_start(details::char_cptr itr)
          {
-            #ifndef exprtk_disable_comments
             const char_t c0 = *(itr + 0);
             const char_t c1 = *(itr + 1);
 
@@ -2428,9 +2428,14 @@ namespace exprtk
                if (('/' == c0) && ('/' == c1)) return true;
                if (('/' == c0) && ('*' == c1)) return true;
             }
-            #endif
             return false;
          }
+         #else
+         inline bool is_comment_start(details::char_cptr)
+         {
+            return false;
+         }
+         #endif
 
          inline void skip_whitespace()
          {
@@ -4876,7 +4881,7 @@ namespace exprtk
          {}
 
          vec_data_store(const std::size_t& size)
-         : control_block_(control_block::create(size,(data_t)(0),true))
+         : control_block_(control_block::create(size,reinterpret_cast<data_t>(0),true))
          {}
 
          vec_data_store(const std::size_t& size, data_t data, bool dstrct = false)
@@ -12145,7 +12150,7 @@ namespace exprtk
          typedef std::vector<range_data_type_t>        range_list_t;
 
          explicit generic_function_node(const std::vector<expression_ptr>& arg_list,
-                                        GenericFunction* func = (GenericFunction*)(0))
+                                        GenericFunction* func = reinterpret_cast<GenericFunction*>(0))
          : function_(func),
            arg_list_(arg_list)
          {}
@@ -12168,7 +12173,7 @@ namespace exprtk
             expr_as_vec1_store_.resize(arg_list_.size(),T(0)               );
             typestore_list_    .resize(arg_list_.size(),type_store_t()     );
             range_list_        .resize(arg_list_.size(),range_data_type_t());
-            branch_            .resize(arg_list_.size(),branch_t((expression_ptr)0,false));
+            branch_            .resize(arg_list_.size(),branch_t(reinterpret_cast<expression_ptr>(0),false));
 
             for (std::size_t i = 0; i < arg_list_.size(); ++i)
             {
@@ -17131,6 +17136,27 @@ namespace exprtk
          : size(0)
          {}
 
+         struct deleter
+         {
+            #define exprtk_define_process(Type)                  \
+            static inline void process(std::pair<bool,Type*>& n) \
+            {                                                    \
+               delete n.second;                                  \
+            }                                                    \
+
+            exprtk_define_process(variable_node_t )
+            exprtk_define_process(vector_t        )
+            #ifndef exprtk_disable_string_capabilities
+            exprtk_define_process(stringvar_node_t)
+            #endif
+
+            #undef exprtk_define_process
+
+            template <typename DeleteType>
+            static inline void process(std::pair<bool,DeleteType*>&)
+            {}
+         };
+
          inline bool symbol_exists(const std::string& symbol_name) const
          {
             if (symbol_name.empty())
@@ -17366,16 +17392,6 @@ namespace exprtk
 
             if (map.end() != itr)
             {
-               struct deleter
-               {
-                  static inline void process(std::pair<bool,variable_node_t*>& n)  { delete n.second; }
-                  static inline void process(std::pair<bool,vector_t*>& n)         { delete n.second; }
-                  #ifndef exprtk_disable_string_capabilities
-                  static inline void process(std::pair<bool,stringvar_node_t*>& n) { delete n.second; }
-                  #endif
-                  static inline void process(std::pair<bool,function_t*>&)         {                  }
-               };
-
                if (delete_node)
                {
                   deleter::process((*itr).second);
@@ -17412,16 +17428,6 @@ namespace exprtk
 
          inline void clear(const bool delete_node = true)
          {
-            struct deleter
-            {
-               static inline void process(std::pair<bool,variable_node_t*>& n)  { delete n.second; }
-               static inline void process(std::pair<bool,vector_t*>& n)         { delete n.second; }
-               static inline void process(std::pair<bool,function_t*>&)         {                  }
-               #ifndef exprtk_disable_string_capabilities
-               static inline void process(std::pair<bool,stringvar_node_t*>& n) { delete n.second; }
-               #endif
-            };
-
             if (!map.empty())
             {
                if (delete_node)
@@ -17487,20 +17493,20 @@ namespace exprtk
          }
       };
 
-      typedef details::expression_node<T>* expression_ptr;
-      typedef typename details::variable_node<T> variable_t;
-      typedef typename details::vector_holder<T> vector_holder_t;
-      typedef variable_t* variable_ptr;
+      typedef details::expression_node<T>*        expression_ptr;
+      typedef typename details::variable_node<T>  variable_t;
+      typedef typename details::vector_holder<T>  vector_holder_t;
+      typedef variable_t*                         variable_ptr;
       #ifndef exprtk_disable_string_capabilities
       typedef typename details::stringvar_node<T> stringvar_t;
-      typedef stringvar_t* stringvar_ptr;
+      typedef stringvar_t*                        stringvar_ptr;
       #endif
-      typedef ifunction        <T> function_t;
-      typedef ivararg_function <T> vararg_function_t;
-      typedef igeneric_function<T> generic_function_t;
-      typedef function_t* function_ptr;
-      typedef vararg_function_t*  vararg_function_ptr;
-      typedef generic_function_t* generic_function_ptr;
+      typedef ifunction        <T>                function_t;
+      typedef ivararg_function <T>                vararg_function_t;
+      typedef igeneric_function<T>                generic_function_t;
+      typedef function_t*                         function_ptr;
+      typedef vararg_function_t*                  vararg_function_ptr;
+      typedef generic_function_t*                 generic_function_ptr;
 
       static const std::size_t lut_size = 256;
 
@@ -17509,16 +17515,16 @@ namespace exprtk
       {
          struct st_data
          {
-            type_store<typename details::variable_node<T>,T> variable_store;
+            type_store<variable_t        , T                 > variable_store;
+            type_store<function_t        , function_t        > function_store;
+            type_store<vararg_function_t , vararg_function_t > vararg_function_store;
+            type_store<generic_function_t, generic_function_t> generic_function_store;
+            type_store<generic_function_t, generic_function_t> string_function_store;
+            type_store<generic_function_t, generic_function_t> overload_function_store;
+            type_store<vector_holder_t   , vector_holder_t   > vector_store;
             #ifndef exprtk_disable_string_capabilities
-            type_store<typename details::stringvar_node<T>,std::string> stringvar_store;
+            type_store<stringvar_t       , std::string       > stringvar_store;
             #endif
-            type_store<ifunction<T>,ifunction<T> >                 function_store;
-            type_store<ivararg_function <T>,ivararg_function <T> > vararg_function_store;
-            type_store<igeneric_function<T>,igeneric_function<T> > generic_function_store;
-            type_store<igeneric_function<T>,igeneric_function<T> > string_function_store;
-            type_store<igeneric_function<T>,igeneric_function<T> > overload_function_store;
-            type_store<vector_holder_t,vector_holder_t>            vector_store;
 
             st_data()
             {
@@ -17964,30 +17970,22 @@ namespace exprtk
             return false;
          else if (symbol_exists(function_name))
             return false;
-         else if (
-                   (
-                     (generic_function_t::e_rtrn_scalar == function.rtrn_type) ||
-                     (generic_function_t::e_rtrn_string == function.rtrn_type)
-                   ) &&
-                   std::string::npos != function.parameter_sequence.find_first_not_of("STVZ*?|")
-                 )
-            return false;
-         else if (
-                   (generic_function_t::e_rtrn_overload  == function.rtrn_type) &&
-                   std::string::npos != function.parameter_sequence.find_first_not_of("STVZ*?|:")
-                 )
-            return false;
-
-         switch (function.rtrn_type)
+         else
          {
-            case generic_function_t::e_rtrn_scalar :
-               return local_data().generic_function_store.add(function_name,function);
+            switch (function.rtrn_type)
+            {
+               case generic_function_t::e_rtrn_scalar :
+                  return (std::string::npos == function.parameter_sequence.find_first_not_of("STVZ*?|")) ?
+                         local_data().generic_function_store.add(function_name,function) : false;
 
-            case generic_function_t::e_rtrn_string :
-               return local_data().string_function_store.add(function_name,function);
+               case generic_function_t::e_rtrn_string :
+                  return (std::string::npos == function.parameter_sequence.find_first_not_of("STVZ*?|")) ?
+                         local_data().string_function_store.add(function_name,function)  : false;
 
-            case generic_function_t::e_rtrn_overload :
-               return local_data().overload_function_store.add(function_name,function);
+               case generic_function_t::e_rtrn_overload :
+                  return (std::string::npos == function.parameter_sequence.find_first_not_of("STVZ*?|:")) ?
+                         local_data().overload_function_store.add(function_name,function) : false;
+            }
          }
 
          return false;
@@ -18053,30 +18051,22 @@ namespace exprtk
             return false;
          else if (symbol_exists(function_name,false))
             return false;
-         else if (
-                   (
-                     (generic_function_t::e_rtrn_scalar == function.rtrn_type) ||
-                     (generic_function_t::e_rtrn_string == function.rtrn_type)
-                   ) &&
-                   std::string::npos != function.parameter_sequence.find_first_not_of("STV*?|")
-                 )
-            return false;
-         else if (
-                   generic_function_t::e_rtrn_overload &&
-                   std::string::npos != function.parameter_sequence.find_first_not_of("STV*?|:")
-                 )
-            return false;
-
-         switch (function.rtrn_type)
+         else
          {
-            case generic_function_t::e_rtrn_scalar :
-               return local_data().generic_function_store.add(function_name,function);
+            switch (function.rtrn_type)
+            {
+               case generic_function_t::e_rtrn_scalar :
+                  return (std::string::npos == function.parameter_sequence.find_first_not_of("STVZ*?|")) ?
+                         local_data().generic_function_store.add(function_name,function) : false;
 
-            case generic_function_t::e_rtrn_string :
-               return local_data().string_function_store.add(function_name,function);
+               case generic_function_t::e_rtrn_string :
+                  return (std::string::npos == function.parameter_sequence.find_first_not_of("STVZ*?|")) ?
+                         local_data().string_function_store.add(function_name,function)  : false;
 
-            case generic_function_t::e_rtrn_overload :
-               return local_data().overload_function_store.add(function_name,function);
+               case generic_function_t::e_rtrn_overload :
+                  return (std::string::npos == function.parameter_sequence.find_first_not_of("STVZ*?|:")) ?
+                         local_data().overload_function_store.add(function_name,function) : false;
+            }
          }
 
          return false;
@@ -18604,13 +18594,13 @@ namespace exprtk
                      case e_vecholder : delete reinterpret_cast<vector_holder_ptr>(local_data_list[i].pointer);
                                         break;
 
-                     case e_data      : delete (T*)(local_data_list[i].pointer);
+                     case e_data      : delete reinterpret_cast<T*>(local_data_list[i].pointer);
                                         break;
 
-                     case e_vecdata   : delete [] (T*)(local_data_list[i].pointer);
+                     case e_vecdata   : delete [] reinterpret_cast<T*>(local_data_list[i].pointer);
                                         break;
 
-                     case e_string    : delete (std::string*)(local_data_list[i].pointer);
+                     case e_string    : delete reinterpret_cast<std::string*>(local_data_list[i].pointer);
                                         break;
 
                      default          : break;
@@ -19407,26 +19397,24 @@ namespace exprtk
 
          inline void free_element(scope_element& se)
          {
-            #ifdef exprtk_enable_debugging
             exprtk_debug(("free_element() - se[%s]\n", se.name.c_str()));
-            #endif
 
             switch (se.type)
             {
-               case scope_element::e_variable   : if (se.data    ) delete (T*) se.data;
-                                                  if (se.var_node) delete se.var_node;
+               case scope_element::e_variable   : delete reinterpret_cast<T*>(se.data);
+                                                  delete se.var_node;
                                                   break;
 
-               case scope_element::e_vector     : if (se.data    ) delete[] (T*) se.data;
-                                                  if (se.vec_node) delete se.vec_node;
+               case scope_element::e_vector     : delete[] reinterpret_cast<T*>(se.data);
+                                                  delete se.vec_node;
                                                   break;
 
-               case scope_element::e_vecelem    : if (se.var_node) delete se.var_node;
+               case scope_element::e_vecelem    : delete se.var_node;
                                                   break;
 
                #ifndef exprtk_disable_string_capabilities
-               case scope_element::e_string     : if (se.data    ) delete (std::string*) se.data;
-                                                  if (se.str_node) delete se.str_node;
+               case scope_element::e_string     : delete reinterpret_cast<std::string*>(se.data);
+                                                  delete se.str_node;
                                                   break;
                #endif
 
@@ -22172,7 +22160,7 @@ namespace exprtk
          else
             result = expression_generator_.function(function,branch);
 
-         sd.delete_ptr = false;
+         sd.delete_ptr = (0 == result);
 
          return result;
       }
@@ -23093,7 +23081,7 @@ namespace exprtk
                      nse.type      = scope_element::e_variable;
                      nse.depth     = state_.scope_depth;
                      nse.data      = new T(T(0));
-                     nse.var_node  = node_allocator_.allocate<variable_node_t>(*(T*)(nse.data));
+                     nse.var_node  = node_allocator_.allocate<variable_node_t>(*reinterpret_cast<T*>(nse.data));
 
                      if (!sem_.add_element(nse))
                      {
@@ -23637,6 +23625,7 @@ namespace exprtk
                           exprtk_error_location));
 
             free_node(node_allocator_,expression);
+            rp.free();
          }
 
          rp.clear();
@@ -23961,6 +23950,8 @@ namespace exprtk
                                 current_token(),
                                 "ERR105 - Range upper bound less than zero! Constraint: r1 >= 0",
                                 exprtk_error_location));
+
+                  rp.free();
 
                   return false;
                }
@@ -24401,11 +24392,6 @@ namespace exprtk
            default_return_type_(default_return_type)
          {
             parse_function_prototypes(func_prototypes);
-         }
-
-         void set_default_return_type(const std::string& return_type)
-         {
-            default_return_type_ = return_type;
          }
 
          bool verify(const std::string& param_seq, std::size_t& pseq_index)
@@ -25447,7 +25433,7 @@ namespace exprtk
             nse.depth     = state_.scope_depth;
             nse.size      = vec_size;
             nse.data      = new T[vec_size];
-            nse.vec_node  = new typename scope_element::vector_holder_t((T*)(nse.data),nse.size);
+            nse.vec_node  = new typename scope_element::vector_holder_t(reinterpret_cast<T*>(nse.data),nse.size);
 
             if (!sem_.add_element(nse))
             {
@@ -25538,7 +25524,7 @@ namespace exprtk
             nse.type      = scope_element::e_string;
             nse.depth     = state_.scope_depth;
             nse.data      = new std::string;
-            nse.str_node  = new stringvar_node_t(*(std::string*)(nse.data));
+            nse.str_node  = new stringvar_node_t(*reinterpret_cast<std::string*>(nse.data));
 
             if (!sem_.add_element(nse))
             {
@@ -25733,7 +25719,7 @@ namespace exprtk
             nse.type      = scope_element::e_variable;
             nse.depth     = state_.scope_depth;
             nse.data      = new T(T(0));
-            nse.var_node  = node_allocator_.allocate<variable_node_t>(*(T*)(nse.data));
+            nse.var_node  = node_allocator_.allocate<variable_node_t>(*reinterpret_cast<T*>(nse.data));
 
             if (!sem_.add_element(nse))
             {
@@ -25827,7 +25813,7 @@ namespace exprtk
             nse.depth     = state_.scope_depth;
             nse.ip_index  = sem_.next_ip_index();
             nse.data      = new T(T(0));
-            nse.var_node  = node_allocator_.allocate<variable_node_t>(*(T*)(nse.data));
+            nse.var_node  = node_allocator_.allocate<variable_node_t>(*reinterpret_cast<T*>(nse.data));
 
             if (!sem_.add_element(nse))
             {
@@ -28705,24 +28691,31 @@ namespace exprtk
                if (details::is_constant_node(result))
                   return result;
                else if (!all_nodes_valid(b))
+               {
+                  details::free_node(*node_allocator_,result);
+                  std::fill_n(b, N, reinterpret_cast<expression_node_ptr>(0));
+
                   return error_node();
+               }
                else if (N != f->param_count)
                {
-                  details::free_all_nodes(*node_allocator_,b);
+                  details::free_node(*node_allocator_,result);
+                  std::fill_n(b, N, reinterpret_cast<expression_node_ptr>(0));
 
                   return error_node();
                }
 
-               function_N_node_t* func_node_ptr = static_cast<function_N_node_t*>(result);
+               function_N_node_t* func_node_ptr = reinterpret_cast<function_N_node_t*>(result);
 
-               if (func_node_ptr->init_branches(b))
-                  return result;
-               else
+               if (!func_node_ptr->init_branches(b))
                {
-                  details::free_all_nodes(*node_allocator_,b);
+                  details::free_node(*node_allocator_,result);
+                  std::fill_n(b, N, reinterpret_cast<expression_node_ptr>(0));
 
                   return error_node();
                }
+
+               return result;
             }
          }
 
@@ -37698,6 +37691,11 @@ namespace exprtk
       }
 
       inline symbol_table_t& symbol_table()
+      {
+         return symbol_table_;
+      }
+
+      inline const symbol_table_t& symbol_table() const
       {
          return symbol_table_;
       }

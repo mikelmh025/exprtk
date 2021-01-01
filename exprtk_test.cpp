@@ -5918,6 +5918,96 @@ template <typename T>
 inline bool run_test18()
 {
    {
+      exprtk::symbol_table<T> symbol_table;
+      symbol_table.remove_variable("x",true);
+      symbol_table.remove_variable("x",false);
+      symbol_table.remove_stringvar("x");
+      symbol_table.remove_function("x");
+      symbol_table.remove_vararg_function("x");
+      symbol_table.remove_vector("x");
+   }
+
+   {
+      exprtk::symbol_table<T> symbol_table;
+
+      {
+         T x;
+         const bool result1 = symbol_table.add_variable("x", x);
+         const bool result2 = symbol_table.remove_variable("x");
+         const bool result3 = symbol_table.remove_variable("x");
+
+         if (!result1 || !result2 || result3)
+         {
+            printf("run_test18() - Failed sym_tab add/remove [1]\n");
+         }
+      }
+
+      {
+         std::string x;
+         const bool result1 = symbol_table.add_stringvar("x", x);
+         const bool result2 = symbol_table.remove_stringvar("x");
+         const bool result3 = symbol_table.remove_stringvar("x");
+
+         if (!result1 || !result2 || result3)
+         {
+            printf("run_test18() - Failed sym_tab add/remove [2]\n");
+         }
+      }
+
+      {
+         std::vector<T> x(10,T(0));
+         const bool result1 = symbol_table.add_vector("x", x);
+         const bool result2 = symbol_table.remove_vector("x");
+         const bool result3 = symbol_table.remove_vector("x");
+
+         if (!result1 || !result2 || result3)
+         {
+            printf("run_test18() - Failed sym_tab add/remove [3]\n");
+         }
+      }
+
+      {
+         myfunc<T> x;
+         const bool result1 = symbol_table.add_function("x", x);
+         const bool result2 = symbol_table.remove_function("x");
+         const bool result3 = symbol_table.remove_function("x");
+
+         if (!result1 || !result2 || result3)
+         {
+            printf("run_test18() - Failed sym_tab add/remove [4]\n");
+         }
+      }
+
+      {
+         va_func<T> x;
+         const bool result1 = symbol_table.add_function("x", x);
+         const bool result2 = symbol_table.remove_vararg_function("x");
+         const bool result3 = symbol_table.remove_vararg_function("x");
+
+         if (!result1 || !result2 || result3)
+         {
+            printf("run_test18() - Failed sym_tab add/remove [5]\n");
+         }
+      }
+
+      {
+         symbol_table.add_function("foo1",foo1);
+         symbol_table.add_function("foo2",foo2);
+         symbol_table.add_function("foo3",foo3);
+         symbol_table.add_function("foo4",foo4);
+         symbol_table.add_function("foo5",foo5);
+         symbol_table.add_function("foo6",foo6);
+
+         symbol_table.remove_function("foo1");
+         symbol_table.remove_function("foo2");
+         symbol_table.remove_function("foo3");
+         symbol_table.remove_function("foo4");
+         symbol_table.remove_function("foo5");
+         symbol_table.remove_function("foo6");
+      }
+   }
+
+   {
       typedef exprtk::expression<T> expression_t;
 
       T x = T(1.1);
